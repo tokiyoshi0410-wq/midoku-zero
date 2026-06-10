@@ -6,6 +6,12 @@
 <title>未読ゼロ — Gmail の未読を、ワンタップで全部既読に</title>
 <meta name="description" content="たまりにたまった Gmail の未読バッジを、スマホのブラウザだけで一括既読化。メールはあなたのブラウザの外に出ません。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23d8401f' stroke-width='3'/%3E%3Ctext x='16' y='21.5' text-anchor='middle' font-size='15' font-weight='bold' fill='%23d8401f'%3E0%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="未読ゼロ">
+<meta name="theme-color" content="#f6f1e7">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -163,7 +169,9 @@ footer .sep { margin: 0 .7em; opacity: .5; }
       <strong>メールは、あなたのブラウザの外に出ません。</strong><br>
       このアプリにはサーバーがありません。既読化はすべてこの画面の中で、あなたと Google の間で直接行われます。メールの内容を読むことも、保存することもありません。
     </div>
-    <button class="btn" id="btn-signin" disabled>Google でログイン</button>
+    <button class="btn btn--shu" id="btn-signin" disabled>いますぐ全部既読にする</button>
+    <p class="note" style="margin-top:10px; text-align:center">Google ログイン後、自動で始まります</p>
+    <button class="btn btn--ghost" id="btn-choose" style="margin-top:12px" disabled>対象を選んでから実行する（プロモーションだけ等）</button>
     <div class="error" id="err-top"></div>
     <div class="wv-hint" id="wv-hint">うまくログインできないときは、<strong>Safari</strong> または <strong>Chrome</strong> で開いてください。アプリ内ブラウザ（LINE・X・メールアプリ等）からは Google ログインがブロックされます。</div>
     <p class="note" style="margin-top:14px">ログインすると <a href="./terms.html">利用規約</a> と <a href="./privacy.html">プライバシーポリシー</a> に同意したものとみなされます。</p>
@@ -358,8 +366,11 @@ async function run() {
   }
 }
 
-/* ── 認証 ── */
+/* ── 認証 ──
+   mode "auto": ログイン完了と同時に全部既読化を開始 (実質ワンタップ)
+   mode "choose": 従来どおり対象選択画面を出す */
 let tokenClient = null;
+let authMode = "auto";
 function onGisReady() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.clientId,
@@ -369,14 +380,21 @@ function onGisReady() {
       state.token = resp.access_token;
       clearError("err-top");
       try {
-        await refreshCounts();
-        showView("select");
+        if (authMode === "auto") {
+          state.unreadTotal = await unreadCount("UNREAD");
+          document.querySelector('input[name="target"][value="all"]').checked = true;
+          await run();
+        } else {
+          await refreshCounts();
+          showView("select");
+        }
       } catch (e) {
         showError("err-top", "未読数を取得できませんでした（" + e.message + "）。もう一度お試しください。");
       }
     },
   });
   $("btn-signin").disabled = false;
+  $("btn-choose").disabled = false;
 }
 (function waitGis() {
   if (window.google?.accounts?.oauth2) { onGisReady(); return; }
@@ -394,7 +412,8 @@ function onGisReady() {
 })();
 
 /* ── イベント ── */
-$("btn-signin").addEventListener("click", () => tokenClient && tokenClient.requestAccessToken());
+$("btn-signin").addEventListener("click", () => { authMode = "auto"; tokenClient && tokenClient.requestAccessToken(); });
+$("btn-choose").addEventListener("click", () => { authMode = "choose"; tokenClient && tokenClient.requestAccessToken(); });
 $("btn-run").addEventListener("click", run);
 $("btn-cancel").addEventListener("click", () => { state.cancelled = true; $("btn-cancel").disabled = true; });
 $("btn-again").addEventListener("click", async () => {

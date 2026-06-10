@@ -1,0 +1,15 @@
+{
+  "name": "未読ゼロ",
+  "short_name": "未読ゼロ",
+  "description": "Gmail の未読をワンタップで一括既読化",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f1e7",
+  "theme_color": "#f6f1e7",
+  "lang": "ja",
+  "icons": [
+    { "src": "./icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
