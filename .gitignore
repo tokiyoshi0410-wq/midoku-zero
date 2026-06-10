@@ -1,0 +1,5 @@
+# ローカル検証用スクリーンショット・作業ファイル
+*.png
+.playwright-mcp/
+DESIGN.md
+PLAN.md

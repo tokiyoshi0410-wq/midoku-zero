@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>未読ゼロ — Gmail の未読を、ワンタップで全部既読に</title>
+<meta name="description" content="たまりにたまった Gmail の未読バッジを、スマホのブラウザだけで一括既読化。メールはあなたのブラウザの外に出ません。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23d8401f' stroke-width='3'/%3E%3Ctext x='16' y='21.5' text-anchor='middle' font-size='15' font-weight='bold' fill='%23d8401f'%3E0%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --washi: #f6f1e7;
+  --washi-deep: #ece4d4;
+  --sumi: #211d17;
+  --sumi-soft: #57503f;
+  --shu: #d8401f;
+  --shu-deep: #b23012;
+  --line: #c9bda2;
+  --ok: #2e6e4e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(216,64,31,.06), transparent 60%),
+    var(--washi);
+  color: var(--sumi);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+/* 和紙の紙肌 (ノイズ) */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+main { flex: 1; width: 100%; max-width: 480px; margin: 0 auto; padding: 0 22px; position: relative; z-index: 1; }
+section[hidden] { display: none !important; }
+
+/* ───── 共通パーツ ───── */
+h1, h2 { font-family: "Shippori Mincho B1", serif; font-weight: 800; letter-spacing: .02em; }
+.rule { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
+.btn {
+  appearance: none; border: 0; cursor: pointer; width: 100%;
+  font-family: inherit; font-weight: 700; font-size: 17px;
+  padding: 17px 20px; border-radius: 8px;
+  background: var(--sumi); color: var(--washi);
+  letter-spacing: .06em;
+  transition: transform .08s ease, background .15s ease, opacity .15s;
+  touch-action: manipulation;
+}
+.btn:active { transform: scale(.985); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn--shu { background: var(--shu); }
+.btn--shu:active { background: var(--shu-deep); }
+.btn--ghost { background: transparent; color: var(--sumi-soft); border: 1px solid var(--line); font-weight: 500; }
+.num { font-family: "IBM Plex Mono", monospace; font-feature-settings: "tnum"; }
+.note { font-size: 12.5px; line-height: 1.8; color: var(--sumi-soft); }
+.error {
+  display: none; margin-top: 16px; padding: 12px 14px;
+  border: 1px solid var(--shu); border-radius: 8px;
+  color: var(--shu-deep); font-size: 13.5px; line-height: 1.7; background: rgba(216,64,31,.05);
+}
+.error.show { display: block; }
+
+/* ───── view: top ───── */
+#view-top { padding-top: max(10vh, 56px); padding-bottom: 40px; animation: rise .6s ease both; }
+.kicker {
+  display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .32em;
+  color: var(--shu); border: 1px solid currentColor; padding: 5px 12px 5px 14px; border-radius: 999px;
+}
+#view-top h1 { font-size: clamp(40px, 12vw, 56px); line-height: 1.28; margin: 22px 0 14px; }
+#view-top h1 em { font-style: normal; color: var(--shu); }
+.lead { font-size: 15px; line-height: 2.05; color: var(--sumi-soft); }
+.trust {
+  margin: 26px 0; padding: 16px 18px; border-left: 3px solid var(--shu);
+  background: rgba(255,255,255,.5); border-radius: 0 10px 10px 0;
+  font-size: 13.5px; line-height: 2; color: var(--sumi);
+}
+.trust strong { color: var(--shu-deep); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* ───── view: select ───── */
+#view-select { padding-top: 48px; padding-bottom: 40px; animation: rise .45s ease both; }
+.count-label { font-size: 13px; font-weight: 700; letter-spacing: .26em; color: var(--sumi-soft); }
+.count-big {
+  font-size: clamp(64px, 21vw, 104px); font-weight: 600; line-height: 1.1;
+  margin: 4px 0 0; letter-spacing: -.02em;
+}
+.count-big small { font-family: "Zen Kaku Gothic New", sans-serif; font-size: 18px; font-weight: 700; margin-left: 6px; letter-spacing: .1em; }
+.chips { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 26px; }
+.chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px;
+  background: rgba(255,255,255,.45); cursor: pointer; transition: border-color .15s, background .15s;
+}
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip .t { font-size: 15px; font-weight: 700; }
+.chip .d { font-size: 12px; color: var(--sumi-soft); margin-top: 2px; }
+.chip .c { font-size: 13px; color: var(--sumi-soft); white-space: nowrap; }
+.chip:has(input:checked) { border-color: var(--shu); background: rgba(216,64,31,.06); }
+.chip:has(input:checked) .t::before { content: "● "; color: var(--shu); font-size: 10px; vertical-align: 2px; }
+
+/* ───── view: run ───── */
+#view-run { padding-top: 56px; padding-bottom: 40px; text-align: center; animation: rise .45s ease both; }
+.run-label { font-size: 13px; font-weight: 700; letter-spacing: .26em; color: var(--sumi-soft); }
+.run-count { font-size: clamp(72px, 24vw, 120px); font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+.bar { height: 3px; background: var(--washi-deep); border-radius: 99px; margin: 26px 0 10px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0%; background: var(--shu); border-radius: 99px; transition: width .5s ease; }
+.run-sub { font-size: 13px; color: var(--sumi-soft); min-height: 1.6em; }
+.keep-on { margin-top: 30px; font-size: 12.5px; color: var(--sumi-soft); line-height: 1.9; }
+
+/* 完了の朱印 */
+.stamp-wrap { display: none; margin: 14px auto 6px; }
+.stamp-wrap.show { display: block; }
+.stamp {
+  width: 132px; height: 132px; margin: 0 auto;
+  border: 4px solid var(--shu); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Shippori Mincho B1", serif; font-weight: 800; font-size: 30px;
+  color: var(--shu); line-height: 1.3; letter-spacing: .08em;
+  transform: rotate(-7deg);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.92'/%3E%3C/svg%3E"), linear-gradient(#000, #000);
+  -webkit-mask-composite: source-over;
+  animation: stamp .5s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+@keyframes stamp {
+  0% { transform: rotate(-7deg) scale(2.1); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: rotate(-7deg) scale(1); opacity: 1; }
+}
+.done-msg { font-size: 15px; line-height: 2; color: var(--sumi); margin-top: 10px; }
+
+/* ───── footer ───── */
+footer {
+  position: relative; z-index: 1;
+  padding: 26px 22px calc(26px + env(safe-area-inset-bottom));
+  text-align: center; font-size: 12px; color: var(--sumi-soft);
+}
+footer a { color: inherit; text-underline-offset: 3px; }
+footer .sep { margin: 0 .7em; opacity: .5; }
+</style>
+</head>
+<body>
+
+<main>
+  <!-- 1. トップ -->
+  <section id="view-top">
+    <span class="kicker">GMAIL 一括既読</span>
+    <h1>未読<em>10万件</em>、<br>今日で終わり。</h1>
+    <p class="lead">たまりにたまった Gmail の未読バッジ。ひとつずつ消すのはもう無理です。「未読ゼロ」なら、ログインしてワンタップ、数分で全部既読になります。</p>
+    <div class="trust">
+      <strong>メールは、あなたのブラウザの外に出ません。</strong><br>
+      このアプリにはサーバーがありません。既読化はすべてこの画面の中で、あなたと Google の間で直接行われます。メールの内容を読むことも、保存することもありません。
+    </div>
+    <button class="btn" id="btn-signin" disabled>Google でログイン</button>
+    <div class="error" id="err-top"></div>
+    <p class="note" style="margin-top:14px">ログインすると <a href="./terms.html">利用規約</a> と <a href="./privacy.html">プライバシーポリシー</a> に同意したものとみなされます。</p>
+  </section>
+
+  <!-- 2. 対象選択 -->
+  <section id="view-select" hidden>
+    <p class="count-label">いまの未読</p>
+    <p class="count-big num" id="unread-total">—<small>件</small></p>
+    <hr class="rule">
+    <div class="chips" id="chips">
+      <label class="chip">
+        <input type="radio" name="target" value="all" checked>
+        <span><span class="t">全部既読にする</span><br><span class="d">受信トレイもプロモーションも、ぜんぶ</span></span>
+        <span class="c num" id="c-all"></span>
+      </label>
+      <label class="chip">
+        <input type="radio" name="target" value="CATEGORY_PROMOTIONS">
+        <span><span class="t">プロモーションだけ</span><br><span class="d">セール・メルマガなどの宣伝メール</span></span>
+        <span class="c num" id="c-promo"></span>
+      </label>
+      <label class="chip">
+        <input type="radio" name="target" value="CATEGORY_SOCIAL">
+        <span><span class="t">ソーシャルだけ</span><br><span class="d">SNS・コミュニティからの通知</span></span>
+        <span class="c num" id="c-social"></span>
+      </label>
+    </div>
+    <button class="btn btn--shu" id="btn-run">既読にする</button>
+    <div class="error" id="err-select"></div>
+    <p class="note" style="margin-top:14px">メールが削除されることはありません。未読の印が外れるだけです。</p>
+  </section>
+
+  <!-- 3. 実行 / 完了 -->
+  <section id="view-run" hidden>
+    <p class="run-label" id="run-label">既読化しています</p>
+    <p class="run-count num" id="run-count">0</p>
+    <div class="bar"><i id="bar-fill"></i></div>
+    <p class="run-sub" id="run-sub"></p>
+    <div class="stamp-wrap" id="stamp-wrap"><div class="stamp">未読<br>ゼロ</div></div>
+    <p class="done-msg" id="done-msg" style="display:none"></p>
+    <p class="keep-on" id="keep-on">処理が終わるまで、この画面を開いたままにしてください。<br>（画面は自動で消灯しないようにしています）</p>
+    <div class="error" id="err-run"></div>
+    <button class="btn btn--ghost" id="btn-cancel" style="margin-top:22px">中断する</button>
+    <button class="btn" id="btn-again" style="display:none; margin-top:22px">最初に戻る</button>
+  </section>
+</main>
+
+<footer>
+  未読ゼロ<span class="sep">|</span><a href="./privacy.html">プライバシーポリシー</a><span class="sep">|</span><a href="./terms.html">利用規約</a>
+</footer>
+
+<script>
+"use strict";
+const CONFIG = {
+  clientId: "95969278096-rcb7nntudcf692mqrg0lc7m25suiqnv5.apps.googleusercontent.com",
+  scope: "https://www.googleapis.com/auth/gmail.modify",
+};
+
+const $ = (id) => document.getElementById(id);
+const state = { token: null, unreadTotal: 0, startTotal: 0, cancelled: false, running: false, wakeLock: null };
+
+function showView(name) {
+  for (const v of ["view-top", "view-select", "view-run"]) $(v).hidden = (v !== "view-" + name);
+}
+function showError(id, msg) { const el = $(id); el.textContent = msg; el.classList.add("show"); }
+function clearError(id) { $(id).classList.remove("show"); }
+const fmt = (n) => Number(n).toLocaleString("ja-JP");
+
+/* ── Gmail API ── */
+async function gmail(path, opts = {}, attempt = 0) {
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/" + path, {
+    ...opts,
+    headers: {
+      Authorization: "Bearer " + state.token,
+      "Content-Type": "application/json",
+      ...(opts.headers || {}),
+    },
+  });
+  if (res.status === 401) throw new Error("AUTH_EXPIRED");
+  if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+    await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+    return gmail(path, opts, attempt + 1);
+  }
+  if (!res.ok) throw new Error("API_" + res.status);
+  const text = await res.text();
+  return text ? JSON.parse(text) : {}; // batchModify は 204 No Content
+}
+
+async function unreadCount(labelId) {
+  const label = await gmail("labels/" + labelId);
+  return label.messagesUnread || 0;
+}
+
+async function refreshCounts() {
+  const [all, promo, social] = await Promise.all([
+    unreadCount("UNREAD"),
+    unreadCount("CATEGORY_PROMOTIONS"),
+    unreadCount("CATEGORY_SOCIAL"),
+  ]);
+  state.unreadTotal = all;
+  $("unread-total").innerHTML = fmt(all) + "<small>件</small>";
+  $("c-all").textContent = fmt(all) + " 件";
+  $("c-promo").textContent = fmt(promo) + " 件";
+  $("c-social").textContent = fmt(social) + " 件";
+}
+
+/* ── 既読化ループ (1000 件/バッチ) ── */
+async function markAllRead(target) {
+  const labelIds = target === "all" ? ["UNREAD"] : ["UNREAD", target];
+  let done = 0;
+  while (!state.cancelled) {
+    const ids = [];
+    let pageToken = null;
+    while (ids.length < 1000) { // batchModify の上限
+      const q = new URLSearchParams({ maxResults: "500", fields: "messages/id,nextPageToken" });
+      for (const l of labelIds) q.append("labelIds", l);
+      if (pageToken) q.set("pageToken", pageToken);
+      const res = (await gmail("messages?" + q)) || {}; // 0 件時は空 body
+      const msgs = res.messages || [];
+      for (const m of msgs) ids.push(m.id);
+      pageToken = res.nextPageToken;
+      if (!pageToken || msgs.length === 0) break;
+    }
+    if (ids.length === 0) break;
+    await gmail("messages/batchModify", {
+      method: "POST",
+      body: JSON.stringify({ ids, removeLabelIds: ["UNREAD"] }),
+    });
+    done += ids.length;
+    renderProgress(done);
+  }
+  return done;
+}
+
+function renderProgress(done) {
+  const remain = Math.max(0, state.startTotal - done);
+  $("run-count").textContent = fmt(remain);
+  const pct = state.startTotal ? Math.min(99, Math.round((done / state.startTotal) * 100)) : 0;
+  $("bar-fill").style.width = pct + "%";
+  $("run-sub").textContent = fmt(done) + " 件 既読化済み";
+}
+
+/* ── 実行フロー ── */
+async function run() {
+  const target = document.querySelector('input[name="target"]:checked').value;
+  state.cancelled = false;
+  state.running = true;
+  state.startTotal = target === "all" ? state.unreadTotal
+    : await unreadCount(target).catch(() => state.unreadTotal);
+  clearError("err-run");
+  $("run-label").textContent = "既読化しています";
+  $("run-count").textContent = fmt(state.startTotal);
+  $("bar-fill").style.width = "0%";
+  $("run-sub").textContent = "";
+  $("stamp-wrap").classList.remove("show");
+  $("done-msg").style.display = "none";
+  $("keep-on").style.display = "";
+  $("btn-cancel").style.display = "";
+  $("btn-again").style.display = "none";
+  showView("run");
+
+  try { state.wakeLock = await navigator.wakeLock?.request("screen"); } catch (_) { /* 非対応は無視 */ }
+
+  try {
+    const done = await markAllRead(target);
+    const remain = await unreadCount("UNREAD").catch(() => 0);
+    $("bar-fill").style.width = "100%";
+    $("run-count").textContent = fmt(target === "all" ? remain : Math.max(0, state.startTotal - done));
+    $("run-label").textContent = state.cancelled ? "中断しました" : "完了";
+    $("run-sub").textContent = fmt(done) + " 件 既読化しました";
+    if (!state.cancelled) {
+      $("stamp-wrap").classList.add("show");
+      $("done-msg").textContent = target === "all" && remain === 0
+        ? "すべてのメールが既読になりました。おつかれさまでした。"
+        : "選んだ範囲の既読化が終わりました。";
+      $("done-msg").style.display = "";
+    }
+  } catch (e) {
+    if (e.message === "AUTH_EXPIRED") {
+      showError("err-run", "ログインの有効期限が切れました。お手数ですが、最初からやり直してください（途中までの既読化は反映されています）。");
+    } else {
+      showError("err-run", "通信エラーが発生しました（" + e.message + "）。時間をおいてもう一度お試しください。途中までの既読化は反映されています。");
+    }
+    $("run-label").textContent = "中断しました";
+  } finally {
+    state.running = false;
+    $("keep-on").style.display = "none";
+    $("btn-cancel").style.display = "none";
+    $("btn-again").style.display = "";
+    try { await state.wakeLock?.release(); } catch (_) {}
+    state.wakeLock = null;
+  }
+}
+
+/* ── 認証 ── */
+let tokenClient = null;
+function onGisReady() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.clientId,
+    scope: CONFIG.scope,
+    callback: async (resp) => {
+      if (resp.error) { showError("err-top", "ログインできませんでした（" + resp.error + "）"); return; }
+      state.token = resp.access_token;
+      clearError("err-top");
+      try {
+        await refreshCounts();
+        showView("select");
+      } catch (e) {
+        showError("err-top", "未読数を取得できませんでした（" + e.message + "）。もう一度お試しください。");
+      }
+    },
+  });
+  $("btn-signin").disabled = false;
+}
+(function waitGis() {
+  if (window.google?.accounts?.oauth2) { onGisReady(); return; }
+  setTimeout(waitGis, 120);
+})();
+
+/* ── イベント ── */
+$("btn-signin").addEventListener("click", () => tokenClient && tokenClient.requestAccessToken());
+$("btn-run").addEventListener("click", run);
+$("btn-cancel").addEventListener("click", () => { state.cancelled = true; $("btn-cancel").disabled = true; });
+$("btn-again").addEventListener("click", async () => {
+  $("btn-cancel").disabled = false;
+  try { await refreshCounts(); showView("select"); }
+  catch (_) { showView("top"); }
+});
+window.addEventListener("beforeunload", (e) => {
+  if (state.running) { e.preventDefault(); e.returnValue = ""; }
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+</body>
+</html>
