@@ -63,6 +63,9 @@ h1, h2 { font-family: "Shippori Mincho B1", serif; font-weight: 800; letter-spac
 .btn--ghost { background: transparent; color: var(--sumi-soft); border: 1px solid var(--line); font-weight: 500; }
 .num { font-family: "IBM Plex Mono", monospace; font-feature-settings: "tnum"; }
 .note { font-size: 12.5px; line-height: 1.8; color: var(--sumi-soft); }
+.wv-hint { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; line-height: 1.85; color: var(--sumi-soft); background: rgba(255,255,255,.5); }
+.wv-hint.alert { border-color: var(--shu); color: var(--shu-deep); background: rgba(216,64,31,.06); font-weight: 500; }
+.wv-hint strong { color: var(--shu-deep); }
 .error {
   display: none; margin-top: 16px; padding: 12px 14px;
   border: 1px solid var(--shu); border-radius: 8px;
@@ -162,6 +165,7 @@ footer .sep { margin: 0 .7em; opacity: .5; }
     </div>
     <button class="btn" id="btn-signin" disabled>Google でログイン</button>
     <div class="error" id="err-top"></div>
+    <div class="wv-hint" id="wv-hint">うまくログインできないときは、<strong>Safari</strong> または <strong>Chrome</strong> で開いてください。アプリ内ブラウザ（LINE・X・メールアプリ等）からは Google ログインがブロックされます。</div>
     <p class="note" style="margin-top:14px">ログインすると <a href="./terms.html">利用規約</a> と <a href="./privacy.html">プライバシーポリシー</a> に同意したものとみなされます。</p>
   </section>
 
@@ -377,6 +381,16 @@ function onGisReady() {
 (function waitGis() {
   if (window.google?.accounts?.oauth2) { onGisReady(); return; }
   setTimeout(waitGis, 120);
+})();
+
+/* アプリ内ブラウザ (WebView) 検知 → Google が disallowed_useragent でログインを弾くので警告を強調 */
+(function detectInAppBrowser() {
+  const ua = navigator.userAgent || "";
+  const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|MicroMessenger|KAKAOTALK|; wv\)/i.test(ua);
+  if (!inApp) return;
+  const el = $("wv-hint");
+  el.classList.add("alert");
+  el.innerHTML = "⚠️ アプリ内ブラウザで開いているため、このままでは Google ログインがブロックされます。<br>画面のメニュー（…）から <strong>Safari</strong> または <strong>Chrome</strong> で開き直してください。";
 })();
 
 /* ── イベント ── */
